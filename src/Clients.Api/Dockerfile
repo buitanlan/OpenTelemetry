@@ -17,7 +17,19 @@ FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "Clients.Api.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
+# Install Auto Instrumentation
+
+ARG OTEL_VERSION=1.9.0
+RUN apt-get update && apt-get install -y unzip curl
+ADD https://github.com/open-telemetry/opentelemetry-dotnet-instrumentation/releases/download/v${OTEL_VERSION}/otel-dotnet-auto-install.sh otel-dotnet-auto-install.sh
+RUN apt-get update && apt-get install -y unzip sh otel-dotnet-auto-install.sh
+RUN chmod +x/otel-dotnet-auto/instrument.sh
+
 FROM base AS final
+
+WORKDIR /
+COPY --from=publish /otel-dotnet-auto ./otel-dotnet-auto
+
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "Clients.Api.dll"]
+ENTRYPOINT ["/bin/bash", "-c", "source /otel-dotnet-auto/instrument.sh && dotnet Clients.Api.dll"]
